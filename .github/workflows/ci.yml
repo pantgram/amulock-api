@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Tests (SQLite, no external services)
+        run: uv run pytest -q
+      - name: Contract (openapi.json) is up to date
+        env:
+          DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/ci
+          CLERK_SECRET_KEY: sk_test_ci
+        run: uv run python -m scripts.export_openapi --check

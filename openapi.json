@@ -1,0 +1,1004 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Amulock API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/claims": {
+      "post": {
+        "tags": [
+          "Guest"
+        ],
+        "summary": "Create Claim",
+        "description": "Opened from the counter QR. Errors: CounterNotFoundError, EventNotOpenError.",
+        "operationId": "create_claim_api_v1_guest_claims_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestClaimCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/claims/{claim_token}": {
+      "get": {
+        "tags": [
+          "Guest"
+        ],
+        "summary": "Get Claim",
+        "description": "The guest's claim screen; polled for status changes. Errors: ClaimNotFoundError.",
+        "operationId": "get_claim_api_v1_guest_claims__claim_token__get",
+        "parameters": [
+          {
+            "name": "claim_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^c_[A-Za-z0-9_-]{22}$",
+              "title": "Claim Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/claims/{claim_token}/phone": {
+      "put": {
+        "tags": [
+          "Guest"
+        ],
+        "summary": "Set Phone",
+        "description": "Opt in to one lost-item SMS. Errors: ClaimNotFoundError, ClaimWrongStateError.",
+        "operationId": "set_phone_api_v1_guest_claims__claim_token__phone_put",
+        "parameters": [
+          {
+            "name": "claim_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^c_[A-Za-z0-9_-]{22}$",
+              "title": "Claim Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestPhoneUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/venue/me": {
+      "get": {
+        "tags": [
+          "Venue"
+        ],
+        "summary": "Get Me",
+        "operationId": "get_me_api_v1_venue_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/venue/events/current": {
+      "get": {
+        "tags": [
+          "Venue"
+        ],
+        "summary": "Get Current Event",
+        "description": "Errors: EventNotOpenError.",
+        "operationId": "get_current_event_api_v1_venue_events_current_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentEventResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/venue/hooks": {
+      "get": {
+        "tags": [
+          "Venue"
+        ],
+        "summary": "List Hooks",
+        "description": "All hooks with whether each is free, for the hook picker. Ordered by rack, then number.",
+        "operationId": "list_hooks_api_v1_venue_hooks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HookStateResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Hooks Api V1 Venue Hooks Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/venue/drop-offs": {
+      "post": {
+        "tags": [
+          "Venue"
+        ],
+        "summary": "Drop Off",
+        "description": "The attendant scans the guest's claim QR. The API assigns the next free hook unless `hookId`\nis given; the response's `hook.label` (e.g. \"B-12\") says where to hang it. CREATED → STORED.\n\nErrors: ClaimNotFoundError, HookNotFoundError, HookOccupiedError, NoFreeHookError,\nClaimWrongStateError, EventNotOpenError.",
+        "operationId": "drop_off_api_v1_venue_drop_offs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DropOffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/venue/claims/lookup": {
+      "get": {
+        "tags": [
+          "Venue"
+        ],
+        "summary": "Lookup Claim",
+        "description": "Pass exactly one of `claimToken` or `shortCode`. Shows the hook for pickup. Errors: ClaimNotFoundError.",
+        "operationId": "lookup_claim_api_v1_venue_claims_lookup_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claimToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "From scanning the guest's claim QR",
+              "title": "Claimtoken"
+            },
+            "description": "From scanning the guest's claim QR"
+          },
+          {
+            "name": "shortCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Typed by the attendant, e.g. 'k7f 2qx'",
+              "title": "Shortcode"
+            },
+            "description": "Typed by the attendant, e.g. 'k7f 2qx'"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/venue/pickups": {
+      "post": {
+        "tags": [
+          "Venue"
+        ],
+        "summary": "Pickup",
+        "description": "STORED or UNCLAIMED → RETURNED, freeing the hook. Errors: ClaimNotFoundError, ClaimWrongStateError.",
+        "operationId": "pickup_api_v1_venue_pickups_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PickupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CurrentEventResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSING",
+              "CLOSED"
+            ],
+            "title": "Status"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Openedat"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "CREATED",
+                "STORED",
+                "RETURNED",
+                "UNCLAIMED",
+                "VOID"
+              ]
+            },
+            "type": "object",
+            "title": "Counts",
+            "description": "Claims per status in this event."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "openedAt",
+          "counts"
+        ],
+        "title": "CurrentEventResponse"
+      },
+      "DropOffRequest": {
+        "properties": {
+          "scanId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Scanid",
+            "description": "Client-generated. Replays return the original result."
+          },
+          "claimToken": {
+            "type": "string",
+            "pattern": "^c_[A-Za-z0-9_-]{22}$",
+            "title": "Claimtoken",
+            "examples": [
+              "c_Q2xhaW1Ub2tlbkV4YW1wbGU"
+            ]
+          },
+          "hookId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hookid",
+            "description": "The hook the attendant chose. Omit to let the API assign one."
+          },
+          "itemCategory": {
+            "type": "string",
+            "enum": [
+              "COAT",
+              "BAG",
+              "KEYS",
+              "OTHER"
+            ],
+            "title": "Itemcategory",
+            "default": "COAT"
+          },
+          "itemCount": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Itemcount",
+            "default": 1
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scanId",
+          "claimToken"
+        ],
+        "title": "DropOffRequest"
+      },
+      "GuestClaimCreate": {
+        "properties": {
+          "counterToken": {
+            "type": "string",
+            "pattern": "^v_[A-Za-z0-9_-]{22}$",
+            "title": "Countertoken",
+            "examples": [
+              "v_Q291bnRlclRva2VuRXhhbXA"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "counterToken"
+        ],
+        "title": "GuestClaimCreate"
+      },
+      "GuestClaimResponse": {
+        "properties": {
+          "claimToken": {
+            "type": "string",
+            "pattern": "^c_[A-Za-z0-9_-]{22}$",
+            "title": "Claimtoken",
+            "examples": [
+              "c_Q2xhaW1Ub2tlbkV4YW1wbGU"
+            ]
+          },
+          "shortCode": {
+            "type": "string",
+            "title": "Shortcode",
+            "description": "Display form, e.g. 'K7F-2QX'",
+            "examples": [
+              "K7F-2QX"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "STORED",
+              "RETURNED",
+              "UNCLAIMED",
+              "VOID"
+            ],
+            "title": "Status"
+          },
+          "venueName": {
+            "type": "string",
+            "title": "Venuename"
+          },
+          "eventName": {
+            "type": "string",
+            "title": "Eventname"
+          },
+          "qrUrl": {
+            "type": "string",
+            "title": "Qrurl",
+            "description": "Encode this in the claim QR shown on the guest's phone."
+          },
+          "hasPhone": {
+            "type": "boolean",
+            "title": "Hasphone"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claimToken",
+          "shortCode",
+          "status",
+          "venueName",
+          "eventName",
+          "qrUrl",
+          "hasPhone",
+          "createdAt"
+        ],
+        "title": "GuestClaimResponse",
+        "description": "What the guest sees. Never includes the hook or other guests' data."
+      },
+      "GuestPhoneUpdate": {
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$",
+            "title": "Phone",
+            "description": "E.164, e.g. +306912345678"
+          },
+          "consent": {
+            "type": "boolean",
+            "title": "Consent",
+            "description": "Must be true: the guest agrees to one SMS about this claim."
+          }
+        },
+        "type": "object",
+        "required": [
+          "phone",
+          "consent"
+        ],
+        "title": "GuestPhoneUpdate"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp"
+        ],
+        "title": "HealthResponse"
+      },
+      "HookRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "rack": {
+            "type": "string",
+            "title": "Rack"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Show this in large type at pickup.",
+            "examples": [
+              "B-12"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rack",
+          "number",
+          "label"
+        ],
+        "title": "HookRef"
+      },
+      "HookStateResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "rack": {
+            "type": "string",
+            "title": "Rack"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "examples": [
+              "B-12"
+            ]
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "occupied": {
+            "type": "boolean",
+            "title": "Occupied",
+            "description": "Holds a stored claim right now."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rack",
+          "number",
+          "label",
+          "active",
+          "occupied"
+        ],
+        "title": "HookStateResponse"
+      },
+      "MessageResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "MessageResponse"
+      },
+      "PickupRequest": {
+        "properties": {
+          "scanId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Scanid",
+            "description": "Client-generated. Replays return the original result."
+          },
+          "claimToken": {
+            "type": "string",
+            "pattern": "^c_[A-Za-z0-9_-]{22}$",
+            "title": "Claimtoken",
+            "examples": [
+              "c_Q2xhaW1Ub2tlbkV4YW1wbGU"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "scanId",
+          "claimToken"
+        ],
+        "title": "PickupRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VenueClaimResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "claimToken": {
+            "type": "string",
+            "pattern": "^c_[A-Za-z0-9_-]{22}$",
+            "title": "Claimtoken",
+            "examples": [
+              "c_Q2xhaW1Ub2tlbkV4YW1wbGU"
+            ]
+          },
+          "shortCode": {
+            "type": "string",
+            "title": "Shortcode",
+            "description": "Display form, e.g. 'K7F-2QX'",
+            "examples": [
+              "K7F-2QX"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "STORED",
+              "RETURNED",
+              "UNCLAIMED",
+              "VOID"
+            ],
+            "title": "Status"
+          },
+          "itemCategory": {
+            "type": "string",
+            "enum": [
+              "COAT",
+              "BAG",
+              "KEYS",
+              "OTHER"
+            ],
+            "title": "Itemcategory"
+          },
+          "itemCount": {
+            "type": "integer",
+            "title": "Itemcount"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "hook": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HookRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hasPhone": {
+            "type": "boolean",
+            "title": "Hasphone"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "storedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storedat"
+          },
+          "returnedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returnedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "claimToken",
+          "shortCode",
+          "status",
+          "itemCategory",
+          "itemCount",
+          "note",
+          "hook",
+          "hasPhone",
+          "createdAt",
+          "storedAt",
+          "returnedAt"
+        ],
+        "title": "VenueClaimResponse"
+      },
+      "VenueResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "locale": {
+            "type": "string",
+            "title": "Locale"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "locale",
+          "timezone"
+        ],
+        "title": "VenueResponse"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "description": "Clerk session token",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health checks"
+    },
+    {
+      "name": "Guest",
+      "description": "Guest app: claims opened from the counter QR (no auth)"
+    },
+    {
+      "name": "Venue",
+      "description": "Venue app: drop-off, pickup, hooks and the current event (Clerk)"
+    }
+  ]
+}
