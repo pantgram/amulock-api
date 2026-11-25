@@ -1,20 +1,19 @@
-"""Token and short-code generation. See docs/decisions.md D2."""
+"""Random tokens encoded in QR codes. Never sequential, never guessable, never primary keys."""
 
 import secrets
 from enum import StrEnum
 
-# Crockford base32 without I, L, O, U
-SHORT_CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-SHORT_CODE_LENGTH = 6
-
 
 class TokenKind(StrEnum):
-    COUNTER = "v"
-    CLAIM = "c"
+    COUNTER = "v"  # venues.counter_token: the permanent counter QR
+    CLAIM = "c"  # claims.guest_token: the guest's claim QR
+
+
+TOKEN_PATTERN = r"^[vc]_[A-Za-z0-9_-]{22}$"
 
 
 def new_token(kind: TokenKind) -> str:
-    """`<prefix>_` + 22 url-safe chars (128 random bits)."""
+    """`<prefix>_` + 22 url-safe chars (128 random bits). The prefix tells a scanner what it read."""
     return f"{kind.value}_{secrets.token_urlsafe(16)}"
 
 
@@ -26,18 +25,3 @@ def token_kind(token: str) -> TokenKind | None:
         return TokenKind(prefix)
     except ValueError:
         return None
-
-
-def new_short_code() -> str:
-    """Raw 6-char code, e.g. 'K7F2QX'. Display as 'K7F-2QX'."""
-    return "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(SHORT_CODE_LENGTH))
-
-
-def format_short_code(code: str) -> str:
-    return f"{code[:3]}-{code[3:]}"
-
-
-def normalize_short_code(text: str) -> str:
-    """Accept what the attendant types: lower case, dashes, spaces, and O/I/L confused for 0/1/1."""
-    cleaned = text.upper().replace("-", "").replace(" ", "")
-    return cleaned.translate(str.maketrans({"O": "0", "I": "1", "L": "1"}))

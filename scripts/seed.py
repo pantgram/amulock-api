@@ -1,52 +1,57 @@
-"""Seed a demo venue for local development and the thin slice.
+"""Seed a demo venue for local development.
 
     uv run python -m scripts.seed --clerk-user-id user_2abc...
 
-Creates "Demo Club" with hooks A-1..A-20 and B-1..B-20 and an open event, linked to a Clerk
+Creates "Demo Club" with positions A-1..A-20 and B-1..B-20 and an open event, linked to a Clerk
 account so the Venue app can call the venue endpoints once signed in with it.
 Create that account in the Clerk dashboard (Users) and copy its user ID.
-Safe to re-run: it does nothing if the demo venue already exists.
+Safe to re-run: it does nothing if that Clerk account already has a venue.
 """
 
 import argparse
 import asyncio
+from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config.database import async_session_factory, engine
-from app.config.settings import settings
-from app.models import Event, Hook, Venue
+from app.models import Event, Position, Venue
 from app.utils.tokens import TokenKind, new_token
 
-DEMO_SLUG = "demo-club"
-HOOKS_PER_RACK = 20
+POSITIONS_PER_ZONE = 20
 
 
-async def seed(clerk_user_id: str) -> None:
+async def seed(clerk_id: str) -> None:
     async with async_session_factory() as db:
-        if (await db.execute(select(Venue).where(Venue.slug == DEMO_SLUG))).scalar_one_or_none():
-            print("Demo venue already exists. Nothing to do.")
+        if await db.scalar(select(Venue).where(Venue.clerk_id == clerk_id)):
+            print("That Clerk account already has a venue. Nothing to do.")
+            await engine.dispose()
             return
 
-        venue = Venue(
-            name="Demo Club",
-            slug=DEMO_SLUG,
-            counter_token=new_token(TokenKind.COUNTER),
-            clerk_user_id=clerk_user_id,
-        )
+        venue = Venue(name="Demo Club", clerk_id=clerk_id, counter_token=new_token(TokenKind.COUNTER))
         db.add(venue)
         await db.flush()
-        for rack in ("A", "B"):
-            for number in range(1, HOOKS_PER_RACK + 1):
-                db.add(Hook(venue_id=venue.id, rack=rack, number=number))
-        db.add(Event(venue_id=venue.id, name="Demo night"))
+        for zone in ("A", "B"):
+            for number in range(1, POSITIONS_PER_ZONE + 1):
+                db.add(Position(venue_id=venue.id, zone=zone, number=number))
+        db.add(
+            Event(
+                venue_id=venue.id,
+                name="Demo night",
+                starts_at=datetime.now(timezone.utc),
+                offer_text="Show your claim at the bar for a free shot",
+                status="open",
+                opened_at=func.now(),
+            )
+        )
         await db.commit()
+        counter_token = venue.counter_token
     await engine.dispose()
 
     print("Seeded Demo Club\n")
-    print(f"Counter QR:  {settings.guest_base_url}/v/{venue.counter_token}")
-    print(f"Clerk user:  {clerk_user_id}")
-    print(f"Hooks:       A-1 to A-{HOOKS_PER_RACK}, B-1 to B-{HOOKS_PER_RACK}")
+    print(f"Clerk user:     {clerk_id}")
+    print(f"Counter token:  {counter_token}")
+    print(f"Positions:      A-1 to A-{POSITIONS_PER_ZONE}, B-1 to B-{POSITIONS_PER_ZONE}")
 
 
 if __name__ == "__main__":

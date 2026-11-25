@@ -8,6 +8,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -18,8 +28,13 @@ jobs:
           uv run ruff format --check .
       - name: Tests (SQLite, no external services)
         run: uv run pytest -q
+      - name: Tests (Postgres)
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/ci
+        run: uv run pytest -q
       - name: Contract (openapi.json) is up to date
         env:
           DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/ci
           CLERK_SECRET_KEY: sk_test_ci
+          CONTACT_SECRET_KEY: ci
         run: uv run python -m scripts.export_openapi --check

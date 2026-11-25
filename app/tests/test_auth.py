@@ -7,7 +7,7 @@ class TestVenueAuth:
 
         assert response.status_code == 200
         body = response.json()
-        assert body["id"] == venue.id
+        assert body["id"] == str(venue.id)
         assert body["name"] == "Demo Club"
 
     async def test_missing_token_is_401(self, client):
@@ -17,7 +17,7 @@ class TestVenueAuth:
         assert response.json() == {"error": "UnauthorizedError", "message": "Unauthorized"}
 
     async def test_expired_token_is_401(self, client, venue):
-        token = make_test_token(venue.clerk_user_id, expires_in=-30)
+        token = make_test_token(venue.clerk_id, expires_in=-30)
         response = await client.get(f"{API}/venue/me", headers={"Authorization": f"Bearer {token}"})
 
         assert response.status_code == 401

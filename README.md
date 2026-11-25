@@ -1,18 +1,19 @@
 # Amulock API
 
-REST API for Amulock, the digital cloakroom: guests get a QR claim on their phone instead of a paper ticket, and venue attendants scan it at drop-off and pickup.
+REST API for Amulock, the digital cloakroom: the backend for the Guest app (claims opened from the counter QR) and the Venue app (events, positions, drop-off and pickup).
 
 Built with **FastAPI**, **SQLAlchemy 2.0 (async)** and **PostgreSQL**, with **Clerk** for Venue app sign-in. Packaged with [uv](https://docs.astral.sh/uv/), Dockerized, and covered by an async pytest suite.
 
 ## Features
 
-- **Guest claims** — the counter QR opens the Guest app, which creates a claim with a QR token and a short code (`K7F-2QX`) for dead phones; optional phone opt-in for a lost-item SMS
-- **Drop-off and pickup** — the attendant scans the guest's claim; the API assigns the next free hook (`B-12`) or uses the one they pick; pickup frees the hook
-- **Claim history** — every change is logged with who did it; repeated scans are detected and not applied twice
+- **Events** — draft → open → closed; at most one open event per venue, with an optional offer shown to guests
+- **Positions** — the venue's numbered spots (`B-12`, or just `12`), created in ranges, activated or deactivated
+- **Claims** — guests open one from the counter QR (or staff create it), staff store it at the next free position and hand it back at pickup; closing an event marks leftovers as unclaimed
+- **Guest contacts** — phone or email, encrypted at rest, searchable by keyed hash, only ever shown masked
 - **Venues** — one Clerk account per venue; every query is scoped to it
-- **Cross-cutting** — camelCase JSON, consistent `{"error", "message"}` errors, rate limiting on claim creation, CORS
+- **Cross-cutting** — camelCase JSON, consistent `{"error", "message"}` errors, CORS, rate-limited guest writes
 
-Out of scope for now: staff users and roles, an Admin app, plans and billing.
+Out of scope for now: staff users and roles, an Admin app, plans and billing, notifications.
 
 ## Tech Stack
 
@@ -40,7 +41,7 @@ Out of scope for now: staff users and roles, an Admin app, plans and billing.
 git clone <repository-url>
 cd amulock-api
 uv sync
-cp .env.example .env      # set DATABASE_URL and CLERK_SECRET_KEY
+cp .env.example .env      # set DATABASE_URL, CLERK_SECRET_KEY and CONTACT_SECRET_KEY
 ```
 
 ### Running
@@ -53,7 +54,7 @@ uv run uvicorn app.main:app --reload --port 5000
 ```
 
 The API is served at `http://localhost:5000/api/v1`, with interactive docs at `/docs`.
-The seed prints the demo venue's counter QR URL. Create the venue's Clerk account under **Users** in the Clerk dashboard and pass its user ID.
+Create the venue's Clerk account under **Users** in the Clerk dashboard and pass its user ID.
 
 Or run everything in containers: `docker compose up --build`.
 
@@ -64,25 +65,38 @@ uv run pytest
 ```
 
 Tests run on in-memory SQLite with fake Clerk tokens, so no database or Clerk keys are needed.
+To run them on Postgres too (CI does), point `TEST_DATABASE_URL` at an empty database; it is wiped after every test:
+
+```bash
+TEST_DATABASE_URL=postgresql+asyncpg://amulock:amulock@localhost:5432/amulock_test uv run pytest
+```
 
 ## API
 
-| Method | Path | Auth | Status |
-|---|---|---|---|
-| GET | `/api/v1/health` | — | built |
-| POST | `/api/v1/guest/claims` | — | contract only (501) |
-| GET | `/api/v1/guest/claims/{claim_token}` | — | contract only (501) |
-| PUT | `/api/v1/guest/claims/{claim_token}/phone` | — | contract only (501) |
-| GET | `/api/v1/venue/me` | Clerk | built |
-| GET | `/api/v1/venue/events/current` | Clerk | contract only (501) |
-| GET | `/api/v1/venue/hooks` | Clerk | contract only (501) |
-| POST | `/api/v1/venue/drop-offs` | Clerk | contract only (501) |
-| GET | `/api/v1/venue/claims/lookup` | Clerk | contract only (501) |
-| POST | `/api/v1/venue/pickups` | Clerk | contract only (501) |
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/v1/health` | — |
+| GET | `/api/v1/guest/counters/{counterToken}` | — |
+| POST | `/api/v1/guest/claims` | — |
+| GET | `/api/v1/guest/claims/{guestToken}` | — |
+| POST | `/api/v1/guest/claims/{guestToken}/cancel` | — |
+| GET | `/api/v1/venue/me` | Clerk |
+| GET, POST | `/api/v1/venue/events` | Clerk |
+| GET | `/api/v1/venue/events/current` | Clerk |
+| GET, PATCH | `/api/v1/venue/events/{eventId}` | Clerk |
+| POST | `/api/v1/venue/events/{eventId}/open`, `/close` | Clerk |
+| GET | `/api/v1/venue/events/{eventId}/claims?status=` | Clerk |
+| GET, POST | `/api/v1/venue/positions` | Clerk |
+| PATCH | `/api/v1/venue/positions/{positionId}` | Clerk |
+| POST | `/api/v1/venue/claims` | Clerk |
+| POST | `/api/v1/venue/claims/search` | Clerk |
+| GET | `/api/v1/venue/claims/by-token/{guestToken}` | Clerk |
+| GET | `/api/v1/venue/claims/{claimId}` | Clerk |
+| POST | `/api/v1/venue/claims/{claimId}/store`, `/collect`, `/cancel` | Clerk |
 
 `openapi.json` in this repo is the contract with the Guest and Venue apps. Regenerate it after changing any route or schema: `uv run python -m scripts.export_openapi`.
 
-Errors are `{"error": "<Name>", "message": "..."}`. Clients switch on `error`, e.g. `ClaimNotFoundError`, `EventNotOpenError`, `HookOccupiedError`.
+Errors are `{"error": "<Name>", "message": "..."}`. Clients switch on `error`, e.g. `EventNotOpenError`, `PositionOccupiedError`, `ClaimWrongStateError`, `NotVenueAccountError`.
 
 ## Project Structure
 
@@ -91,14 +105,13 @@ app/
   api/v1/          routers: health, guest, venue
   config/          settings, database (auto-commit sessions), logging, rate limiter
   dependencies/    Clerk auth -> current venue
-  models/          venues, events, hooks, claims, claim_events (+ enums)
+  models/          venues, positions, events, claims (+ enums)
   schemas/         CamelModel request/response models
-  services/        business logic (claim, venue)
-  utils/           errors, tokens
+  services/        business logic (venue: events + positions; claim)
+  utils/           errors, tokens, contact encryption/hashing
   tests/           pytest suite (SQLite)
 alembic/           migrations
 scripts/           seed, export_openapi
-docs/decisions.md  claim lifecycle, tokens, errors, hook assignment, auth
 ```
 
-See [`AGENTS.md`](AGENTS.md) for conventions and [`docs/decisions.md`](docs/decisions.md) for the design decisions.
+See [`AGENTS.md`](AGENTS.md) for conventions.

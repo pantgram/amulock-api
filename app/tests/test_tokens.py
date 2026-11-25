@@ -1,13 +1,7 @@
-from app.services.claim import can_transition
-from app.utils.tokens import (
-    SHORT_CODE_ALPHABET,
-    TokenKind,
-    format_short_code,
-    new_short_code,
-    new_token,
-    normalize_short_code,
-    token_kind,
-)
+import pytest
+
+from app.utils import contact
+from app.utils.tokens import TokenKind, new_token, token_kind
 
 
 class TestTokens:
@@ -27,29 +21,29 @@ class TestTokens:
         assert token_kind("nounderscore") is None
 
 
-class TestShortCodes:
-    def test_alphabet_and_format(self):
-        code = new_short_code()
-        assert len(code) == 6
-        assert set(code) <= set(SHORT_CODE_ALPHABET)
-        assert format_short_code("K7F2QX") == "K7F-2QX"
+class TestContacts:
+    def test_phone_normalization(self):
+        assert contact.normalize("phone", "+30 691 234-5678") == "+306912345678"
+        assert contact.normalize("phone", "0030 6912345678") == "+306912345678"
 
-    def test_normalize_forgives_typing(self):
-        assert normalize_short_code("k7f-2qx") == "K7F2QX"
-        assert normalize_short_code(" o1l 2ab ") == "0112AB"
+    def test_email_normalization(self):
+        assert contact.normalize("email", "  Maria@Example.COM ") == "maria@example.com"
 
+    @pytest.mark.parametrize(("kind", "value"), [("phone", "6912345678"), ("phone", "+30abc"), ("email", "nope")])
+    def test_rejects_invalid(self, kind, value):
+        with pytest.raises(ValueError):
+            contact.normalize(kind, value)
 
-class TestClaimTransitions:
-    def test_allowed(self):
-        assert can_transition("CREATED", "STORED")
-        assert can_transition("STORED", "RETURNED")
-        assert can_transition("STORED", "UNCLAIMED")
-        assert can_transition("UNCLAIMED", "RETURNED")
+    def test_encryption_round_trip(self):
+        ciphertext = contact.encrypt("+306912345678")
+        assert b"6912345678" not in ciphertext
+        assert contact.decrypt(ciphertext) == "+306912345678"
 
-    def test_final_states_are_final(self):
-        for target in ("CREATED", "STORED", "RETURNED", "UNCLAIMED", "VOID"):
-            assert not can_transition("RETURNED", target)
-            assert not can_transition("VOID", target)
+    def test_hash_is_stable_and_keyed(self):
+        assert contact.hash_contact("a@b.co") == contact.hash_contact("a@b.co")
+        assert contact.hash_contact("a@b.co") != contact.hash_contact("c@b.co")
+        assert len(contact.hash_contact("a@b.co")) == 32
 
-    def test_cannot_skip_drop_off(self):
-        assert not can_transition("CREATED", "RETURNED")
+    def test_mask(self):
+        assert contact.mask("phone", "+306912345678") == "+30" + "•" * 6 + "5678"
+        assert contact.mask("email", "maria@example.com") == "m•••@example.com"

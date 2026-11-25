@@ -11,8 +11,6 @@ class Settings(BaseSettings):
     log_file: str = "/tmp/amulock_api.log"
     log_level: str = "INFO"
 
-    # Where the Guest app is served; used to build the URLs encoded in QR codes.
-    guest_base_url: str = "http://localhost:5173"
     # Comma-separated browser origins allowed by CORS (Guest app, Venue app).
     cors_origins: str = "http://localhost:5173,http://localhost:5174"
 
@@ -22,8 +20,9 @@ class Settings(BaseSettings):
     # Comma-separated `azp` allowlist; parsed into clerk_authorized_parties_list.
     clerk_authorized_parties: str = ""
 
-    # A guest claim left in CREATED this long is voided.
-    created_claim_ttl_minutes: int = 120
+    # Secret for guest contacts: the encryption and lookup-hash keys are derived from it.
+    # Changing it makes existing contacts unreadable and unsearchable.
+    contact_secret_key: str
 
     @computed_field
     @property

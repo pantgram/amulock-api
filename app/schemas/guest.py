@@ -1,28 +1,31 @@
 from datetime import datetime
 
-from pydantic import Field
-
 from app.schemas.base import CamelModel
-from app.schemas.common import ClaimStatus, ClaimToken, CounterToken, ShortCode
+from app.schemas.common import ClaimStatus, ContactInput, Token
 
 
-class GuestClaimCreate(CamelModel):
-    counter_token: CounterToken
+class GuestEventResponse(CamelModel):
+    name: str
+    starts_at: datetime
+    offer_text: str | None
+
+
+class GuestCounterResponse(CamelModel):
+    """What the counter QR opens: the venue and its open event (null when the cloakroom is closed)."""
+
+    venue_name: str
+    event: GuestEventResponse | None
+
+
+class GuestClaimCreate(ContactInput):
+    counter_token: Token
 
 
 class GuestClaimResponse(CamelModel):
-    """What the guest sees. Never includes the hook or other guests' data."""
+    """What the guest sees. Never includes the position or other guests' data."""
 
-    claim_token: ClaimToken
-    short_code: ShortCode
+    guest_token: Token
     status: ClaimStatus
     venue_name: str
-    event_name: str
-    qr_url: str = Field(description="Encode this in the claim QR shown on the guest's phone.")
-    has_phone: bool
+    event: GuestEventResponse
     created_at: datetime
-
-
-class GuestPhoneUpdate(CamelModel):
-    phone: str = Field(pattern=r"^\+[1-9]\d{7,14}$", description="E.164, e.g. +306912345678")
-    consent: bool = Field(description="Must be true: the guest agrees to one SMS about this claim.")

@@ -44,16 +44,14 @@ async def get_current_venue(
 ) -> Venue:
     """The venue whose Clerk account signed this request. Every Venue app query is scoped to it.
 
-    One Clerk account per venue for now (venues.clerk_user_id); staff accounts come later.
+    One Clerk account per venue for now (venues.clerk_id); staff accounts come later.
     """
     payload = authenticate_clerk_request(request)
-    clerk_user_id = payload.get("sub")
-    if not clerk_user_id:
+    clerk_id = payload.get("sub")
+    if not clerk_id:
         raise UnauthorizedError("Unauthorized")
-    # Recorded on claim history as the actor of Venue app writes.
-    request.state.clerk_user_id = clerk_user_id
 
-    result = await db.execute(select(Venue).where(Venue.clerk_user_id == clerk_user_id))
+    result = await db.execute(select(Venue).where(Venue.clerk_id == clerk_id))
     venue = result.scalar_one_or_none()
     if venue is None:
         # Valid Clerk token, but this account isn't linked to a venue.

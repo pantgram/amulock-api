@@ -74,7 +74,17 @@ class NotVenueAccountError(ForbiddenError):
 
 
 class CounterNotFoundError(NotFoundError):
-    def __init__(self, message: str = "Counter QR not found"):
+    def __init__(self, message: str = "Unknown counter QR"):
+        super().__init__(message)
+
+
+class EventNotFoundError(NotFoundError):
+    def __init__(self, message: str = "Event not found"):
+        super().__init__(message)
+
+
+class PositionNotFoundError(NotFoundError):
+    def __init__(self, message: str = "Position not found or inactive"):
         super().__init__(message)
 
 
@@ -83,28 +93,40 @@ class ClaimNotFoundError(NotFoundError):
         super().__init__(message)
 
 
-class HookNotFoundError(NotFoundError):
-    def __init__(self, message: str = "Hook not found"):
-        super().__init__(message)
-
-
 class EventNotOpenError(ConflictError):
     def __init__(self, message: str = "The cloakroom isn't open"):
         super().__init__(message)
 
 
+class EventAlreadyOpenError(ConflictError):
+    def __init__(self, message: str = "An event is already open; close it first"):
+        super().__init__(message)
+
+
+class EventWrongStateError(ConflictError):
+    """The change isn't allowed from the event's current status (e.g. reopening a closed event)."""
+
+    def __init__(self, message: str = "Not allowed in the event's current status"):
+        super().__init__(message)
+
+
+class PositionAlreadyExistsError(ConflictError):
+    def __init__(self, message: str = "A position with that zone and number already exists"):
+        super().__init__(message)
+
+
+class PositionOccupiedError(ConflictError):
+    def __init__(self, message: str = "That position already holds a stored claim"):
+        super().__init__(message)
+
+
+class NoFreePositionError(ConflictError):
+    def __init__(self, message: str = "Every active position holds a stored claim"):
+        super().__init__(message)
+
+
 class ClaimWrongStateError(ConflictError):
-    def __init__(self, message: str = "The claim can't do that in its current state"):
-        super().__init__(message)
-
-
-class HookOccupiedError(ConflictError):
-    def __init__(self, message: str = "Hook already in use"):
-        super().__init__(message)
-
-
-class NoFreeHookError(ConflictError):
-    def __init__(self, message: str = "Every hook is in use"):
+    def __init__(self, message: str = "Not allowed in the claim's current status"):
         super().__init__(message)
 
 
@@ -141,6 +163,13 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             "message": "Invalid request data",
             "details": details,
         },
+    )
+
+
+async def rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"error": "RateLimitedError", "message": "Too many requests; try again in a minute"},
     )
 
 
