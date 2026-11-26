@@ -48,6 +48,7 @@ class TestContract:
             "/api/v1/venue/claims/{claim_id}/store",
             "/api/v1/venue/claims/{claim_id}/collect",
             "/api/v1/venue/claims/{claim_id}/cancel",
+            "/api/v1/webhooks/clerk",
         }
 
 

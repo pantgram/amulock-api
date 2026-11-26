@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     clerk_jwt_key: str = ""
     # Comma-separated `azp` allowlist; parsed into clerk_authorized_parties_list.
     clerk_authorized_parties: str = ""
+    # Svix signing secret of the Clerk webhook endpoint (whsec_...). Empty → every delivery is rejected.
+    clerk_webhook_secret: str = ""
 
     # Secret for guest contacts: the encryption and lookup-hash keys are derived from it.
     # Changing it makes existing contacts unreadable and unsearchable.

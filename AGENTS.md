@@ -55,6 +55,7 @@ In: Guest endpoints (no auth: counter QR, own claim) and Venue endpoints (Clerk:
 
 - Session tokens verified by `authenticate_clerk_request` in `app/dependencies/auth.py` — a thin wrapper around the `clerk-backend-api` SDK's `authenticate_request` (`accepts_token=["session_token"]`, `azp` allowlist via `CLERK_AUTHORIZED_PARTIES`, optional networkless verification via `CLERK_JWT_KEY`).
 - One Clerk account per venue (`venues.clerk_id`), shared on its counter devices. `get_current_venue` maps the token's `sub` to the venue; an unlinked account is a 403 `NotVenueAccountError`.
+- Venue accounts are provisioned by the Clerk webhook (`POST /webhooks/clerk`, `app/api/v1/webhook.py`, Svix-signed with `CLERK_WEBHOOK_SECRET`; empty secret rejects everything): `user.created` creates an empty venue named from `public_metadata.venueName` (else the account's name), `user.updated` renames it only from that metadata, `user.deleted` removes it only if it never had an event. Handlers are idempotent; tests sign real deliveries with `svix.Webhook.sign`.
 - Every Venue query filters by the current venue's id (claims through `events.venue_id`). One venue never sees another's data.
 - Guests have no accounts: the counter token opens a claim, and holding the guest token is the authorization for that claim. `POST /guest/claims` is rate limited (slowapi; disabled in tests by an autouse fixture).
 

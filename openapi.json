@@ -1100,6 +1100,28 @@
           }
         }
       }
+    },
+    "/api/v1/webhooks/clerk": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Clerk Webhook",
+        "description": "Receive Clerk user lifecycle events for venue accounts (one Clerk account per venue).\n\n``user.created`` links the new account to a new, empty venue (counter token, no positions,\nno events). ``user.updated`` renames the venue when ``public_metadata.venueName`` is set.\n``user.deleted`` removes the venue only if it never had an event; venues with claim\nhistory are kept (and logged) until contact retention exists. Handlers are idempotent\n(Clerk redelivers), every verified event is answered 200 and unknown types are ignored.",
+        "operationId": "clerk_webhook_api_v1_webhooks_clerk_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1811,6 +1833,17 @@
           "counterToken"
         ],
         "title": "VenueResponse"
+      },
+      "WebhookAckResponse": {
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "title": "Received",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "WebhookAckResponse"
       }
     },
     "securitySchemes": {
@@ -1833,6 +1866,10 @@
     {
       "name": "Venue",
       "description": "Venue app: events, positions, drop-off and pickup (Clerk)"
+    },
+    {
+      "name": "Webhooks",
+      "description": "Clerk user lifecycle events (Svix-signed): venue account provisioning"
     }
   ]
 }

@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 
-from . import guest, health, venue
+from . import guest, health, venue, webhook
 
 router = APIRouter(prefix="/v1")
 
 router.include_router(health.router)
 router.include_router(guest.router)
 router.include_router(venue.router)
+router.include_router(webhook.router)

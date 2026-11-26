@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Claim, Event, Position, Venue
@@ -15,6 +15,7 @@ from app.utils.errors import (
     PositionAlreadyExistsError,
     PositionNotFoundError,
 )
+from app.utils.tokens import TokenKind, new_token
 
 # ---------- events ----------
 
@@ -148,3 +149,46 @@ async def update_position(
     position.is_active = data.is_active
     await db.flush()
     return position
+
+
+# ---------- accounts (Clerk webhook) ----------
+
+
+async def find_venue_by_clerk_id(db: AsyncSession, clerk_id: str) -> Venue | None:
+    return await db.scalar(select(Venue).where(Venue.clerk_id == clerk_id))
+
+
+async def create_venue_for_account(db: AsyncSession, clerk_id: str, name: str) -> Venue:
+    """Link a new Clerk account to a new, empty venue (no positions, no events). Idempotent: an
+    account that already has a venue gets it back unchanged."""
+    venue = await find_venue_by_clerk_id(db, clerk_id)
+    if venue is not None:
+        return venue
+    venue = Venue(clerk_id=clerk_id, name=name, counter_token=new_token(TokenKind.COUNTER))
+    db.add(venue)
+    await db.flush()
+    return venue
+
+
+async def rename_venue_for_account(db: AsyncSession, clerk_id: str, name: str) -> Venue | None:
+    """None if the account has no venue."""
+    venue = await find_venue_by_clerk_id(db, clerk_id)
+    if venue is not None and venue.name != name:
+        venue.name = name
+        await db.flush()
+    return venue
+
+
+async def remove_venue_for_account(db: AsyncSession, clerk_id: str) -> bool:
+    """Delete the account's venue and its positions, but only if it never had an event: events hold
+    claims and guest contacts, which are kept until contact retention is built. Returns whether it
+    was deleted (False also when the account has no venue)."""
+    venue = await find_venue_by_clerk_id(db, clerk_id)
+    if venue is None:
+        return False
+    if await db.scalar(select(func.count()).select_from(Event).where(Event.venue_id == venue.id)):
+        return False
+    await db.execute(delete(Position).where(Position.venue_id == venue.id))
+    await db.delete(venue)
+    await db.flush()
+    return True

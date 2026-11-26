@@ -33,6 +33,7 @@ openapi_tags = [
     {"name": "Health", "description": "Service health checks"},
     {"name": "Guest", "description": "Guest app: claims opened from the counter QR (no auth)"},
     {"name": "Venue", "description": "Venue app: events, positions, drop-off and pickup (Clerk)"},
+    {"name": "Webhooks", "description": "Clerk user lifecycle events (Svix-signed): venue account provisioning"},
 ]
 
 app = FastAPI(title="Amulock API", version="0.1.0", lifespan=lifespan, openapi_tags=openapi_tags)
