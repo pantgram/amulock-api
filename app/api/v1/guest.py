@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db
 from app.config.limiter import limiter
+from app.config.settings import settings
 from app.schemas.guest import GuestClaimCreate, GuestClaimResponse, GuestCounterResponse
 from app.services import claim as claim_service
 from app.utils.tokens import TOKEN_PATTERN
@@ -24,7 +25,7 @@ async def get_counter(counter_token: TokenPath, db: AsyncSession = Depends(get_d
 
 
 @router.post("/claims", response_model=GuestClaimResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("20/minute")
+@limiter.limit(lambda: settings.guest_claim_rate_limit)
 async def create_claim(request: Request, data: GuestClaimCreate, db: AsyncSession = Depends(get_db)):
     """A pending claim in the venue's open event; staff store it at drop-off.
 

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from svix.webhooks import Webhook
 
 from app.models import Position, Venue
+from app.services.venue import NEW_VENUE_NAME
 from app.tests.conftest import API, auth_headers_for, create_venue
 
 URL = f"{API}/webhooks/clerk"
@@ -69,37 +70,21 @@ class TestSignature:
 
 class TestUserCreated:
     async def test_creates_an_empty_venue_usable_by_the_account(self, client, session):
-        event = user_event("user.created", "user_new", public_metadata={"venueName": "  Club Nox  "})
-        response = await client.post(URL, **signed(event))
+        response = await client.post(URL, **signed(user_event("user.created", "user_new", first_name="Ada")))
 
         assert response.status_code == 200
         assert response.json() == {"received": True}
         venue = await venue_of(session, "user_new")
-        assert venue.name == "Club Nox"
+        assert venue.name == NEW_VENUE_NAME
         assert venue.counter_token.startswith("v_")
         assert await session.scalar(select(Position).where(Position.venue_id == venue.id)) is None
 
         me = await client.get(f"{API}/venue/me", headers=auth_headers_for(venue))
         assert me.status_code == 200
 
-    @pytest.mark.parametrize(
-        ("data", "expected"),
-        [
-            ({"first_name": "Ada", "last_name": "Lovelace"}, "Ada Lovelace"),
-            ({"first_name": None, "last_name": None, "username": "nox"}, "nox"),
-            ({}, "My venue"),
-        ],
-    )
-    async def test_name_fallbacks(self, client, session, data, expected):
-        await client.post(URL, **signed(user_event("user.created", "user_fb", **data)))
-
-        assert (await venue_of(session, "user_fb")).name == expected
-
     async def test_redelivery_keeps_the_existing_venue(self, client, session):
         venue = await create_venue(session)
-        response = await client.post(
-            URL, **signed(user_event("user.created", venue.clerk_id, public_metadata={"venueName": "Other"}))
-        )
+        response = await client.post(URL, **signed(user_event("user.created", venue.clerk_id)))
 
         assert response.status_code == 200
         again = await venue_of(session, venue.clerk_id)
@@ -107,25 +92,13 @@ class TestUserCreated:
 
 
 class TestUserUpdated:
-    async def test_renames_from_metadata(self, client, session):
+    async def test_leaves_the_venue_untouched(self, client, session):
         venue = await create_venue(session)
-        event = user_event("user.updated", venue.clerk_id, public_metadata={"venueName": "Nox"})
-        await client.post(URL, **signed(event))
-
-        assert (await venue_of(session, venue.clerk_id)).name == "Nox"
-
-    async def test_without_metadata_name_changes_nothing(self, client, session):
-        venue = await create_venue(session)
-        await client.post(URL, **signed(user_event("user.updated", venue.clerk_id, first_name="Ada")))
-
-        assert (await venue_of(session, venue.clerk_id)).name == "Demo Club"
-
-    async def test_unknown_account_is_ignored(self, client, session):
-        event = user_event("user.updated", "user_ghost", public_metadata={"venueName": "Nox"})
+        event = user_event("user.updated", venue.clerk_id, first_name="Ada", public_metadata={"venueName": "Nox"})
         response = await client.post(URL, **signed(event))
 
         assert response.status_code == 200
-        assert await venue_of(session, "user_ghost") is None
+        assert (await venue_of(session, venue.clerk_id)).name == "Demo Club"
 
 
 class TestUserDeleted:

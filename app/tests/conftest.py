@@ -17,12 +17,14 @@ _TEST_ENV = {
 for _key, _value in _TEST_ENV.items():
     os.environ.setdefault(_key, _value)
 
+import asyncio
+
 import jwt as pyjwt
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
+from sqlalchemy import make_url, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401  (register all models on Base.metadata)
 from app.config.database import Base, get_db
@@ -116,51 +118,59 @@ async def create_venue(
 # --- Fixtures ---
 
 
-# Optional: run the suite against a real, empty Postgres database (e.g. in CI) instead of SQLite.
-# Every table is dropped after each test, so never point this at a database you care about.
-TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+# The suite runs on a real Postgres database (start it with `docker compose up -d db-test`).
+# The schema is created once per session and every table is truncated after each test, so the
+# database name must end in `_test`: never point this at a database you care about.
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL", "postgresql+asyncpg://amulock:amulock@localhost:5433/amulock_test"
+)
+_TRUNCATE = text(
+    f"TRUNCATE {', '.join(t.name for t in reversed(Base.metadata.sorted_tables))} RESTART IDENTITY CASCADE"
+)
+
+
+async def _rebuild_schema(create: bool) -> None:
+    from app.models.enums import ALL_ENUMS
+
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            for enum in ALL_ENUMS:
+                await conn.run_sync(lambda sync_conn, e=enum: e.drop(sync_conn, checkfirst=True))
+            if create:
+                for enum in ALL_ENUMS:
+                    await conn.run_sync(lambda sync_conn, e=enum: e.create(sync_conn))
+                await conn.run_sync(Base.metadata.create_all)
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def test_database_schema():
+    """Fresh schema for the whole session. Sync (asyncio.run) so it needs no session-scoped event loop."""
+    database = make_url(TEST_DATABASE_URL).database or ""
+    if not database.endswith("_test"):
+        pytest.exit(f"TEST_DATABASE_URL must name a database ending in '_test' (got {database!r}); it is wiped.", 2)
+    try:
+        asyncio.run(_rebuild_schema(create=True))
+    except (OSError, asyncio.TimeoutError) as exc:
+        pytest.exit(
+            f"Can't reach the test database at {make_url(TEST_DATABASE_URL).render_as_string()} ({exc}).\n"
+            "Start it with: docker compose up -d db-test",
+            2,
+        )
+    yield
+    asyncio.run(_rebuild_schema(create=False))
 
 
 @pytest.fixture
 async def db_engine():
-    if TEST_DATABASE_URL:
-        async for engine in _postgres_engine():
-            yield engine
-        return
-    engine = create_async_engine(
-        "sqlite+aiosqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _configure_sqlite(dbapi_connection, _):
-        dbapi_connection.create_function("NOW", 0, lambda: datetime.now(timezone.utc).isoformat(sep=" "))
-        dbapi_connection.create_function("gen_random_uuid", 0, lambda: uuid.uuid4().hex)
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-async def _postgres_engine():
-    from app.models.enums import ALL_ENUMS
-
-    engine = create_async_engine(TEST_DATABASE_URL)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        for enum in ALL_ENUMS:
-            await conn.run_sync(lambda sync_conn, e=enum: e.create(sync_conn, checkfirst=True))
-        await conn.run_sync(Base.metadata.create_all)
+    # NullPool: no pooled connection outlives the test's event loop.
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     yield engine
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        for enum in ALL_ENUMS:
-            await conn.run_sync(lambda sync_conn, e=enum: e.drop(sync_conn, checkfirst=True))
+        await conn.execute(_TRUNCATE)
     await engine.dispose()
 
 

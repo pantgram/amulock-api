@@ -222,3 +222,21 @@ class TestGuestClaims:
         )
 
         assert response.status_code == 404
+
+
+class TestGuestRateLimit:
+    async def test_limit_comes_from_settings(self, client, venue, monkeypatch):
+        from app.config.limiter import limiter
+        from app.config.settings import settings
+
+        monkeypatch.setattr(limiter, "enabled", True)
+        monkeypatch.setattr(settings, "guest_claim_rate_limit", "2/minute")
+        limiter.reset()
+        body = {"counterToken": venue.counter_token, **PHONE}
+
+        codes = [(await client.post(f"{API}/guest/claims", json=body)).status_code for _ in range(3)]
+        limited = await client.post(f"{API}/guest/claims", json=body)
+        limiter.reset()
+
+        assert codes == [201, 201, 429]
+        assert limited.json()["error"] == "RateLimitedError"

@@ -59,7 +59,7 @@ class InternalServerError(AppError):
 
 
 class NotImplementedYetError(AppError):
-    """Endpoint agreed in the contract (openapi.json) but not built yet."""
+    """Endpoint agreed in the contract but not built yet."""
 
     def __init__(self, message: str = "Not implemented yet"):
         super().__init__(501, message)
@@ -159,7 +159,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     return JSONResponse(
         status_code=422,
         content={
-            "error": "Validation Error",
+            "error": "ValidationError",
             "message": "Invalid request data",
             "details": details,
         },
@@ -177,5 +177,5 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
     logger.exception("Unhandled exception")
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal Server Error", "message": "An unexpected error occurred"},
+        content={"error": "InternalServerError", "message": "An unexpected error occurred"},
     )

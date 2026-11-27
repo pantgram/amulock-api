@@ -1,4 +1,6 @@
+import jwt
 from clerk_backend_api import AuthenticateRequestOptions, authenticate_request
+from clerk_backend_api.security.types import TokenVerificationErrorReason
 from fastapi import Depends, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -35,6 +37,7 @@ def authenticate_clerk_request(request: Request) -> dict:
         logger.warning("Clerk token verification failed: %s", reason)
         raise UnauthorizedError("Unauthorized")
     return state.payload
+
 
 
 async def get_current_venue(

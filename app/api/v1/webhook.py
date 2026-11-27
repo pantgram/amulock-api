@@ -13,10 +13,6 @@ from app.utils.errors import ValidationError
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
-# Same limit as event names; venues.name itself is unbounded text.
-_MAX_VENUE_NAME_LENGTH = 120
-_DEFAULT_VENUE_NAME = "My venue"
-
 
 def verify_webhook(payload: bytes, headers: dict) -> dict:
     """Verify the Svix signature of a Clerk webhook delivery and return the
@@ -33,29 +29,12 @@ def verify_webhook(payload: bytes, headers: dict) -> dict:
     return json.loads(payload)
 
 
-def _clean(value) -> str:
-    return value.strip()[:_MAX_VENUE_NAME_LENGTH] if isinstance(value, str) else ""
-
-
-def _metadata_venue_name(data: dict) -> str:
-    """The venue name set on the Clerk user's public metadata (``venueName``), if any.
-    Public metadata is only writable from the backend/dashboard, so an account can't rename itself."""
-    metadata = data.get("public_metadata") or {}
-    return _clean(metadata.get("venueName") or metadata.get("venue_name"))
-
-
-def _initial_venue_name(data: dict) -> str:
-    """metadata venueName → the account's full name → username → a placeholder."""
-    full_name = " ".join(part for part in (_clean(data.get("first_name")), _clean(data.get("last_name"))) if part)
-    return _metadata_venue_name(data) or _clean(full_name) or _clean(data.get("username")) or _DEFAULT_VENUE_NAME
-
-
 @router.post("/clerk", response_model=WebhookAckResponse)
 async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Receive Clerk user lifecycle events for venue accounts (one Clerk account per venue).
 
     ``user.created`` links the new account to a new, empty venue (counter token, no positions,
-    no events). ``user.updated`` renames the venue when ``public_metadata.venueName`` is set.
+    no events, placeholder name: the venue sets its name through the Venue endpoints).
     ``user.deleted`` removes the venue only if it never had an event; venues with claim
     history are kept (and logged) until contact retention exists. Handlers are idempotent
     (Clerk redelivers), every verified event is answered 200 and unknown types are ignored.
@@ -76,17 +55,8 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         return WebhookAckResponse()
 
     if event_type == "user.created":
-        venue = await venue_service.create_venue_for_account(db, clerk_id, _initial_venue_name(data))
+        venue = await venue_service.create_venue_for_account(db, clerk_id)
         logger.info("Webhook user.created: clerk user %s linked to venue %s", clerk_id, venue.id)
-
-    elif event_type == "user.updated":
-        name = _metadata_venue_name(data)
-        if not name:
-            logger.info("Webhook user.updated for clerk user %s: no venueName in metadata; ignoring", clerk_id)
-        elif (venue := await venue_service.rename_venue_for_account(db, clerk_id, name)) is None:
-            logger.info("Webhook user.updated for clerk user %s without a venue; ignoring", clerk_id)
-        else:
-            logger.info("Webhook user.updated: venue %s name refreshed", venue.id)
 
     elif event_type == "user.deleted":
         venue = await venue_service.find_venue_by_clerk_id(db, clerk_id)

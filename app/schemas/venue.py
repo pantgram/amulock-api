@@ -15,6 +15,18 @@ class VenueResponse(CamelModel):
     counter_token: Token = Field(description="Encode in the counter QR that guests scan.")
 
 
+class VenueUpdateRequest(CamelModel):
+    name: str = Field(min_length=1, max_length=120, description="Shown to guests on the counter and claim screens.")
+
+    @field_validator("name")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Name can't be blank")
+        return value
+
+
 # ---------- events ----------
 
 

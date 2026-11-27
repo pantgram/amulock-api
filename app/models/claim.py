@@ -32,7 +32,6 @@ class Claim(Base):
             "position_id",
             unique=True,
             postgresql_where=sa.text("status = 'stored'"),
-            sqlite_where=sa.text("status = 'stored'"),
         ),
     )
 

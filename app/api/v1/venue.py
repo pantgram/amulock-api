@@ -21,6 +21,7 @@ from app.schemas.venue import (
     PositionResponse,
     PositionUpdateRequest,
     VenueResponse,
+    VenueUpdateRequest,
 )
 from app.services import claim as claim_service
 from app.services import venue as venue_service
@@ -32,6 +33,14 @@ router = APIRouter(prefix="/venue", tags=["Venue"])
 @router.get("/me", response_model=VenueResponse)
 async def get_me(venue: Venue = Depends(get_current_venue)):
     return venue
+
+
+@router.patch("/me", response_model=VenueResponse)
+async def update_me(
+    data: VenueUpdateRequest, venue: Venue = Depends(get_current_venue), db: AsyncSession = Depends(get_db)
+):
+    """Set the venue's name (new accounts start as "New venue")."""
+    return await venue_service.update_venue(db, venue, data)
 
 
 # ---------- events ----------

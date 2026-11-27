@@ -21,7 +21,7 @@ Out of scope for now: staff users and roles, an Admin app, plans and billing, no
 |---|---|
 | Framework | FastAPI |
 | ORM | SQLAlchemy 2.0 (async) + Alembic migrations |
-| Database | PostgreSQL (asyncpg); SQLite (aiosqlite) in tests |
+| Database | PostgreSQL (asyncpg) |
 | Validation | Pydantic v2 + pydantic-settings |
 | Auth | Clerk (`clerk-backend-api` SDK) |
 | Tooling | uv, ruff, pytest + pytest-asyncio |
@@ -61,11 +61,12 @@ Or run everything in containers: `docker compose up --build`.
 ### Testing
 
 ```bash
+docker compose up -d db-test   # throwaway Postgres on localhost:5433
 uv run pytest
 ```
 
-Tests run on in-memory SQLite with fake Clerk tokens, so no database or Clerk keys are needed.
-To run them on Postgres too (CI does), point `TEST_DATABASE_URL` at an empty database; it is wiped after every test:
+Tests run on Postgres with fake Clerk tokens, so no Clerk keys are needed. To use another database, set
+`TEST_DATABASE_URL` (its name must end in `_test`; it is wiped):
 
 ```bash
 TEST_DATABASE_URL=postgresql+asyncpg://amulock:amulock@localhost:5432/amulock_test uv run pytest
@@ -80,7 +81,7 @@ TEST_DATABASE_URL=postgresql+asyncpg://amulock:amulock@localhost:5432/amulock_te
 | POST | `/api/v1/guest/claims` | — |
 | GET | `/api/v1/guest/claims/{guestToken}` | — |
 | POST | `/api/v1/guest/claims/{guestToken}/cancel` | — |
-| GET | `/api/v1/venue/me` | Clerk |
+| GET, PATCH | `/api/v1/venue/me` | Clerk |
 | GET, POST | `/api/v1/venue/events` | Clerk |
 | GET | `/api/v1/venue/events/current` | Clerk |
 | GET, PATCH | `/api/v1/venue/events/{eventId}` | Clerk |
@@ -94,7 +95,7 @@ TEST_DATABASE_URL=postgresql+asyncpg://amulock:amulock@localhost:5432/amulock_te
 | GET | `/api/v1/venue/claims/{claimId}` | Clerk |
 | POST | `/api/v1/venue/claims/{claimId}/store`, `/collect`, `/cancel` | Clerk |
 
-`openapi.json` in this repo is the contract with the Guest and Venue apps. Regenerate it after changing any route or schema: `uv run python -m scripts.export_openapi`.
+The live OpenAPI spec is served at `/openapi.json` (docs at `/docs`).
 
 Errors are `{"error": "<Name>", "message": "..."}`. Clients switch on `error`, e.g. `EventNotOpenError`, `PositionOccupiedError`, `ClaimWrongStateError`, `NotVenueAccountError`.
 
@@ -109,9 +110,9 @@ app/
   schemas/         CamelModel request/response models
   services/        business logic (venue: events + positions; claim)
   utils/           errors, tokens, contact encryption/hashing
-  tests/           pytest suite (SQLite)
+  tests/           pytest suite (Postgres)
 alembic/           migrations
-scripts/           seed, export_openapi
+scripts/           seed
 ```
 
 See [`AGENTS.md`](AGENTS.md) for conventions.

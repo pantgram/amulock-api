@@ -8,17 +8,18 @@ FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL REST API for Amulock, the digital 
 
 ```bash
 uv sync                                              # install deps (dev group included)
-uv run pytest                                        # full suite (<1s, SQLite, no external services)
+docker compose up -d db-test                         # test Postgres on :5433 (tmpfs, throwaway)
+uv run pytest                                        # full suite (Postgres, ~10s)
 uv run pytest app/tests/test_auth.py -k name         # focused test
 uv run ruff check . && uv run ruff format .          # lint (line length 120; rules E,F,I,N,W) — baseline is clean
 uv run uvicorn app.main:app --reload --port 5000     # dev server (docs at /docs)
 uv run alembic upgrade head                          # apply migrations
 uv run alembic revision --autogenerate -m "..."      # generate migration
 uv run python -m scripts.seed --clerk-user-id user_x # demo venue with positions and an open event
-uv run python -m scripts.export_openapi              # refresh openapi.json (the frontend contract)
+uv run python -m scripts.clerk_token --clerk-user-id user_x  # mint a Clerk session token (dev instance; needs empty CLERK_AUTHORIZED_PARTIES)
 ```
 
-CI (`.github/workflows/ci.yml`) runs ruff, pytest and `export_openapi --check`.
+CI (`.github/workflows/ci.yml`) runs ruff and pytest (Postgres).
 
 ## Environment gotchas
 
@@ -49,15 +50,14 @@ In: Guest endpoints (no auth: counter QR, own claim) and Venue endpoints (Clerk:
 - Every route must declare `response_model` (guarded by `app/tests/test_response_conventions.py`).
 - Return ORM rows directly where the schema matches; Pydantic serializes them (`from_attributes=True`).
 - Eagerly load (`joinedload`/`selectinload`) any relationship a schema touches to avoid `MissingGreenlet`.
-- After changing a route or schema, run `scripts.export_openapi` and commit `openapi.json`.
 
 ### Auth (Clerk)
 
 - Session tokens verified by `authenticate_clerk_request` in `app/dependencies/auth.py` — a thin wrapper around the `clerk-backend-api` SDK's `authenticate_request` (`accepts_token=["session_token"]`, `azp` allowlist via `CLERK_AUTHORIZED_PARTIES`, optional networkless verification via `CLERK_JWT_KEY`).
 - One Clerk account per venue (`venues.clerk_id`), shared on its counter devices. `get_current_venue` maps the token's `sub` to the venue; an unlinked account is a 403 `NotVenueAccountError`.
-- Venue accounts are provisioned by the Clerk webhook (`POST /webhooks/clerk`, `app/api/v1/webhook.py`, Svix-signed with `CLERK_WEBHOOK_SECRET`; empty secret rejects everything): `user.created` creates an empty venue named from `public_metadata.venueName` (else the account's name), `user.updated` renames it only from that metadata, `user.deleted` removes it only if it never had an event. Handlers are idempotent; tests sign real deliveries with `svix.Webhook.sign`.
+- Venue accounts are provisioned by the Clerk webhook (`POST /webhooks/clerk`, `app/api/v1/webhook.py`, Svix-signed with `CLERK_WEBHOOK_SECRET`; empty secret rejects everything): `user.created` creates an empty venue with the placeholder name `NEW_VENUE_NAME` (the venue sets its real name through the Venue endpoints; the webhook never touches names), `user.deleted` removes it only if it never had an event. Handlers are idempotent; tests sign real deliveries with `svix.Webhook.sign`.
 - Every Venue query filters by the current venue's id (claims through `events.venue_id`). One venue never sees another's data.
-- Guests have no accounts: the counter token opens a claim, and holding the guest token is the authorization for that claim. `POST /guest/claims` is rate limited (slowapi; disabled in tests by an autouse fixture).
+- Guests have no accounts: the counter token opens a claim, and holding the guest token is the authorization for that claim. `POST /guest/claims` is rate limited per client IP (slowapi, `GUEST_CLAIM_RATE_LIMIT`; disabled in tests by an autouse fixture). Behind a proxy, uvicorn needs `FORWARDED_ALLOW_IPS` or every guest shares the proxy's IP.
 
 ### Domain rules the database enforces
 
@@ -65,12 +65,10 @@ In: Guest endpoints (no auth: counter QR, own claim) and Venue endpoints (Clerk:
 - One `stored` claim per position per event (`claims_one_per_position`); a `stored` claim always has a position (`claims_check`).
 - Position `(venue_id, zone, number)` is unique and `number > 0`.
 
-Partial indexes carry both `postgresql_where` and `sqlite_where` so the SQLite test DB enforces them too. Keep both when adding one.
-
 ## Testing (`app/tests/`)
 
 - `conftest.py` injects fake env vars **before** importing the app, using `os.environ.setdefault` — real exported env vars leak into tests.
-- Tests run on in-memory SQLite (aiosqlite) by default. Set `TEST_DATABASE_URL` to an empty Postgres database to run them there (CI does both; the database is wiped after each test). Postgres-only constructs need a SQLite path (see the partial indexes; `conftest.py` registers `NOW()` and `gen_random_uuid()` as SQLite functions).
+- Tests run on Postgres: the `db-test` service in `docker-compose.yml` (`docker compose up -d db-test`), or any database set in `TEST_DATABASE_URL` (default `postgresql+asyncpg://amulock:amulock@localhost:5433/amulock_test`). The database name must end in `_test`: the schema is rebuilt once per session (`create_all`, not Alembic) and every table is truncated after each test. If the database is unreachable, pytest exits at once with a hint.
 - Clerk verification is replaced with HS256 test tokens (`sub="user_<hex>"`). Use `make_test_token`, `create_venue`, `auth_headers_for`, and the `venue`/`venue_headers` fixtures.
 
 ## Alembic

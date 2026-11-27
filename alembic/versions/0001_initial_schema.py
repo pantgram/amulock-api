@@ -74,7 +74,6 @@ def upgrade() -> None:
         ["venue_id"],
         unique=True,
         postgresql_where=sa.text("status = 'open'"),
-        sqlite_where=sa.text("status = 'open'"),
     )
     op.create_table(
         "claims",
@@ -111,7 +110,6 @@ def upgrade() -> None:
         ["event_id", "position_id"],
         unique=True,
         postgresql_where=sa.text("status = 'stored'"),
-        sqlite_where=sa.text("status = 'stored'"),
     )
 
 

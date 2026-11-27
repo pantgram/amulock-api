@@ -24,7 +24,6 @@ class Event(Base):
             "venue_id",
             unique=True,
             postgresql_where=sa.text("status = 'open'"),
-            sqlite_where=sa.text("status = 'open'"),
         ),
     )
 

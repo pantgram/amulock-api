@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Changing it makes existing contacts unreadable and unsearchable.
     contact_secret_key: str
 
+    # Per client IP on POST /guest/claims (slowapi syntax). Guests on the venue's Wi-Fi or a carrier
+    # network share one public IP, so keep it high enough for a busy door; it only stops floods.
+    # Behind a reverse proxy, set FORWARDED_ALLOW_IPS (read by uvicorn) so the real client IP is used.
+    guest_claim_rate_limit: str = "120/minute"
+
     @computed_field
     @property
     def clerk_authorized_parties_list(self) -> list[str]:

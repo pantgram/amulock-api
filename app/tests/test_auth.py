@@ -1,3 +1,5 @@
+import pytest
+
 from app.tests.conftest import API, make_test_token
 
 
@@ -38,3 +40,30 @@ class TestVenueAuth:
 
         assert mine["name"] == "Demo Club"
         assert theirs["name"] == "Other Club"
+
+
+class TestVenueProfile:
+    async def test_rename(self, client, venue_headers):
+        response = await client.patch(f"{API}/venue/me", headers=venue_headers, json={"name": "  Club Nox  "})
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "Club Nox"
+        assert (await client.get(f"{API}/venue/me", headers=venue_headers)).json()["name"] == "Club Nox"
+
+    async def test_guests_see_the_new_name(self, client, venue, venue_headers):
+        await client.patch(f"{API}/venue/me", headers=venue_headers, json={"name": "Club Nox"})
+
+        counter = await client.get(f"{API}/guest/counters/{venue.counter_token}")
+        assert counter.json()["venueName"] == "Club Nox"
+
+    @pytest.mark.parametrize("name", ["", "   ", "x" * 121])
+    async def test_invalid_name(self, client, venue_headers, name):
+        response = await client.patch(f"{API}/venue/me", headers=venue_headers, json={"name": name})
+
+        assert response.status_code == 422
+        assert response.json()["error"] == "ValidationError"
+
+    async def test_requires_venue_login(self, client):
+        response = await client.patch(f"{API}/venue/me", json={"name": "Club Nox"})
+
+        assert response.status_code == 401

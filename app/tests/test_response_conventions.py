@@ -60,7 +60,7 @@ class TestErrorFormats:
 
         assert response.status_code == 422
         body = response.json()
-        assert body["error"] == "Validation Error"
+        assert body["error"] == "ValidationError"
         assert body["message"] == "Invalid request data"
         assert body["details"][0]["path"] == "name"
 
@@ -78,3 +78,26 @@ class TestErrorFormats:
 
         assert response.status_code == 404
         assert response.json() == {"error": "NotFoundError", "message": "Not Found"}
+
+    async def test_unhandled_error_is_masked(self, session_factory):
+        from fastapi import APIRouter
+        from httpx import ASGITransport, AsyncClient
+
+        from app.main import app
+
+        router = APIRouter()
+
+        @router.get("/__boom")
+        async def boom():
+            raise RuntimeError("secret detail")
+
+        app.include_router(router)
+        try:
+            transport = ASGITransport(app=app, raise_app_exceptions=False)
+            async with AsyncClient(transport=transport, base_url="http://test") as raw:
+                response = await raw.get("/__boom")
+        finally:
+            app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", None) != "/__boom"]
+
+        assert response.status_code == 500
+        assert response.json() == {"error": "InternalServerError", "message": "An unexpected error occurred"}

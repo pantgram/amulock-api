@@ -46,7 +46,7 @@ app.add_exception_handler(Exception, generic_error_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins="*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -6,7 +6,13 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Claim, Event, Position, Venue
-from app.schemas.venue import EventCreateRequest, EventUpdateRequest, PositionCreateRequest, PositionUpdateRequest
+from app.schemas.venue import (
+    EventCreateRequest,
+    EventUpdateRequest,
+    PositionCreateRequest,
+    PositionUpdateRequest,
+    VenueUpdateRequest,
+)
 from app.utils.errors import (
     EventAlreadyOpenError,
     EventNotFoundError,
@@ -16,6 +22,15 @@ from app.utils.errors import (
     PositionNotFoundError,
 )
 from app.utils.tokens import TokenKind, new_token
+
+# ---------- venue ----------
+
+
+async def update_venue(db: AsyncSession, venue: Venue, data: VenueUpdateRequest) -> Venue:
+    venue.name = data.name
+    await db.flush()
+    return venue
+
 
 # ---------- events ----------
 
@@ -153,29 +168,24 @@ async def update_position(
 
 # ---------- accounts (Clerk webhook) ----------
 
+# venues.name is NOT NULL; the venue replaces this through the Venue endpoints.
+NEW_VENUE_NAME = "New venue"
+
 
 async def find_venue_by_clerk_id(db: AsyncSession, clerk_id: str) -> Venue | None:
     return await db.scalar(select(Venue).where(Venue.clerk_id == clerk_id))
 
 
-async def create_venue_for_account(db: AsyncSession, clerk_id: str, name: str) -> Venue:
-    """Link a new Clerk account to a new, empty venue (no positions, no events). Idempotent: an
-    account that already has a venue gets it back unchanged."""
+async def create_venue_for_account(db: AsyncSession, clerk_id: str) -> Venue:
+    """Link a new Clerk account to a new, empty venue (no positions, no events) named
+    NEW_VENUE_NAME until the venue sets its own. Idempotent: an account that already has a venue
+    gets it back unchanged."""
     venue = await find_venue_by_clerk_id(db, clerk_id)
     if venue is not None:
         return venue
-    venue = Venue(clerk_id=clerk_id, name=name, counter_token=new_token(TokenKind.COUNTER))
+    venue = Venue(clerk_id=clerk_id, name=NEW_VENUE_NAME, counter_token=new_token(TokenKind.COUNTER))
     db.add(venue)
     await db.flush()
-    return venue
-
-
-async def rename_venue_for_account(db: AsyncSession, clerk_id: str, name: str) -> Venue | None:
-    """None if the account has no venue."""
-    venue = await find_venue_by_clerk_id(db, clerk_id)
-    if venue is not None and venue.name != name:
-        venue.name = name
-        await db.flush()
     return venue
 
 
